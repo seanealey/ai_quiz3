@@ -75,14 +75,14 @@ env.close()
 # ------------------------
 # Results
 # ------------------------
-print("\n📊 Evaluation Results (Q-Learning Agent)")
+print("\n Evaluation Results (Q-Learning Agent)")
 print(f"Evaluated {NUM_EPISODES} episodes")
-print(f"🎯 Success rate: {successes}/{NUM_EPISODES} ({successes / NUM_EPISODES * 100:.1f}%)")
-print(f"❌ Failure count: {failures}")
-print(f"📈 Average reward: {np.mean(total_rewards):.2f}")
-print(f"📊 Reward range: {np.min(total_rewards):.2f} → {np.max(total_rewards):.2f}")
+print(f" Success rate: {successes}/{NUM_EPISODES} ({successes / NUM_EPISODES * 100:.1f}%)")
+print(f" Failure count: {failures}")
+print(f" Average reward: {np.mean(total_rewards):.2f}")
+print(f" Reward range: {np.min(total_rewards):.2f} → {np.max(total_rewards):.2f}")
 if steps_to_goal:
-    print(f"🏁 Avg steps to goal (successes): {np.mean(steps_to_goal):.1f}")
+    print(f" Avg steps to goal (successes): {np.mean(steps_to_goal):.1f}")
 else:
-    print("⚠️  No successful episodes — check training or state encoding.")
-print(f"⏱️  Avg episode length: {np.mean(episode_lengths):.1f} steps")
+    print("  No successful episodes — check training or state encoding.")
+print(f"  Avg episode length: {np.mean(episode_lengths):.1f} steps")

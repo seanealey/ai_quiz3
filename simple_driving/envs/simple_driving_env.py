@@ -87,7 +87,7 @@ class SimpleDrivingEnv(gym.Env):
             self.done = True
             self.reached_goal = True
             reward += 50
-            print("🎯 Goal reached! Reward:", reward)
+            print(" Goal reached! Reward:", reward)
         """
         contacts = self._p.getContactPoints(bodyA=self.car.car, bodyB=self.obstacle)
         if contacts:
