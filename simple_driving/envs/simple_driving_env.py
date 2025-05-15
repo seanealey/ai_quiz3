@@ -1,6 +1,7 @@
 import gym
 import numpy as np
 import math
+import os
 import pybullet as p
 from pybullet_utils import bullet_client as bc
 from simple_driving.resources.car import Car
@@ -8,6 +9,7 @@ from simple_driving.resources.plane import Plane
 from simple_driving.resources.goal import Goal
 import matplotlib.pyplot as plt
 import time
+import random
 
 RENDER_HEIGHT = 720
 RENDER_WIDTH = 960
@@ -75,8 +77,8 @@ class SimpleDrivingEnv(gym.Env):
                                   # (car_ob[1] - self.goal[1]) ** 2))
         dist_to_goal = math.sqrt(((carpos[0] - goalpos[0]) ** 2 +
                                   (carpos[1] - goalpos[1]) ** 2))
-        # reward = max(self.prev_dist_to_goal - dist_to_goal, 0)
-        reward = -dist_to_goal
+        reward = 5 * max(self.prev_dist_to_goal - dist_to_goal, 0)
+        #reward = -dist_to_goal
         self.prev_dist_to_goal = dist_to_goal
 
         # Done by reaching goal
@@ -84,6 +86,32 @@ class SimpleDrivingEnv(gym.Env):
             #print("reached goal")
             self.done = True
             self.reached_goal = True
+            reward += 50
+            print("🎯 Goal reached! Reward:", reward)
+        """
+        contacts = self._p.getContactPoints(bodyA=self.car.car, bodyB=self.obstacle)
+        if contacts:
+            reward -= 25
+            self.done = True
+        """
+
+        # Get car yaw from quaternion
+        _, carorn = self._p.getBasePositionAndOrientation(self.car.car)
+        euler = self._p.getEulerFromQuaternion(carorn)
+        car_yaw = euler[2]
+
+        # Compute alignment between car heading and goal direction
+        heading_vector = np.array([np.cos(car_yaw), np.sin(car_yaw)])
+        goal_vector = np.array(goalpos[:2]) - np.array(carpos[:2])
+        goal_dist = np.linalg.norm(goal_vector)
+        if goal_dist > 1e-6:  # avoid division by zero
+            goal_vector /= goal_dist
+            alignment = np.dot(heading_vector, goal_vector)
+            reward += 0.2 * max(0, alignment)  # reward only when facing toward the goal
+
+
+
+
 
         ob = car_ob
         return ob, reward, self.done, dict()
@@ -92,6 +120,7 @@ class SimpleDrivingEnv(gym.Env):
         self.np_random, seed = gym.utils.seeding.np_random(seed)
         return [seed]
 
+    """
     def reset(self):
         self._p.resetSimulation()
         self._p.setTimeStep(self._timeStep)
@@ -110,6 +139,13 @@ class SimpleDrivingEnv(gym.Env):
         self.done = False
         self.reached_goal = False
 
+                # Define obstacle position
+        self.obstacle_pos = [random.uniform(-9, -5), random.uniform(-9, 5), 0]
+
+
+        # Load URDF
+        obstacle_path = os.path.join(os.path.dirname(__file__), "../resources/simplegoal.urdf")
+        self.obstacle = self._p.loadURDF(fileName=obstacle_path, basePosition=self.obstacle_pos)
         # Visual element of the goal
         self.goal_object = Goal(self._p, self.goal)
 
@@ -120,6 +156,58 @@ class SimpleDrivingEnv(gym.Env):
                                            (carpos[1] - self.goal[1]) ** 2))
         car_ob = self.getExtendedObservation()
         return np.array(car_ob, dtype=np.float32)
+
+    """
+    def reset(self):
+        self._p.resetSimulation()
+        self._p.setTimeStep(self._timeStep)
+        self._p.setGravity(0, 0, -10)
+
+        # Reload the plane and car
+        Plane(self._p)
+        self.car = Car(self._p)
+        self._envStepCounter = 0
+
+        # Set the goal to a random target
+        x = (self.np_random.uniform(5, 9) if self.np_random.integers(2) else
+            self.np_random.uniform(-9, -5))
+        y = (self.np_random.uniform(5, 9) if self.np_random.integers(2) else
+            self.np_random.uniform(-9, -5))
+        self.goal = (x, y)
+        self.done = False
+        self.reached_goal = False
+        """
+        # Sample safe obstacle position
+        car_pos = [0, 0]
+        max_attempts = 100
+        for _ in range(max_attempts):
+            ox = random.uniform(-9, 9)
+            oy = random.uniform(-9, 9)
+            dist_to_car = math.hypot(ox - car_pos[0], oy - car_pos[1])
+            dist_to_goal = math.hypot(ox - x, oy - y)
+
+            if dist_to_car > 2.0 and dist_to_goal > 2.0:
+                self.obstacle_pos = [ox, oy, 0]
+                break
+        else:
+            # Fallback if all attempts fail
+            self.obstacle_pos = [4.0, 0.0, 0]
+
+        # Load URDF
+        obstacle_path = os.path.join(os.path.dirname(__file__), "../resources/simplegoal.urdf")
+        self.obstacle = self._p.loadURDF(fileName=obstacle_path, basePosition=self.obstacle_pos)
+        """
+        # Visual goal marker
+        self.goal_object = Goal(self._p, self.goal)
+
+        # Get initial observation
+        carpos = self.car.get_observation()
+        self.prev_dist_to_goal = math.sqrt(((carpos[0] - self.goal[0]) ** 2 +
+                                            (carpos[1] - self.goal[1]) ** 2))
+        car_ob = self.getExtendedObservation()
+        return np.array(car_ob, dtype=np.float32)
+
+
 
     def render(self, mode='human'):
         if mode == "fp_camera":
@@ -177,14 +265,27 @@ class SimpleDrivingEnv(gym.Env):
             return np.array([])
 
     def getExtendedObservation(self):
-        # self._observation = []  #self._racecar.getObservation()
         carpos, carorn = self._p.getBasePositionAndOrientation(self.car.car)
         goalpos, goalorn = self._p.getBasePositionAndOrientation(self.goal_object.goal)
-        invCarPos, invCarOrn = self._p.invertTransform(carpos, carorn)
-        goalPosInCar, goalOrnInCar = self._p.multiplyTransforms(invCarPos, invCarOrn, goalpos, goalorn)
+        #obs_pos = getattr(self, "obstacle_pos", [0, 0, 0])  # fallback if not set
 
-        observation = [goalPosInCar[0], goalPosInCar[1]]
+        # Transform goal to car frame
+        invCarPos, invCarOrn = self._p.invertTransform(carpos, carorn)
+        goalPosInCar, _ = self._p.multiplyTransforms(invCarPos, invCarOrn, goalpos, goalorn)
+
+        # Transform obstacle to car frame
+        #obsPosInCar, _ = self._p.multiplyTransforms(invCarPos, invCarOrn, obs_pos, [0, 0, 0, 1])
+        """
+        observation = [
+            goalPosInCar[0], goalPosInCar[1],  # x_goal, y_goal
+            obsPosInCar[0], obsPosInCar[1]     # x_obstacle, y_obstacle
+        ]
+        """
+        observation = [
+            goalPosInCar[0], goalPosInCar[1]     # x_goal, y_goal
+        ]
         return observation
+
 
     def _termination(self):
         return self._envStepCounter > 2000
