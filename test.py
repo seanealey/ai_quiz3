@@ -36,7 +36,7 @@ with open(QTABLE_FILE, "rb") as f:
 # ------------------------
 # Evaluate
 # ------------------------
-env = gym.make("SimpleDriving-v0", apply_api_compatibility=True, renders=True, isDiscrete=True)
+env = gym.make("SimpleDriving-v0", apply_api_compatibility=True, renders=False, isDiscrete=True)
 
 successes = 0
 failures = 0
